@@ -1,196 +1,221 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
+  StyleSheet,
+} from "react-native";
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebase";
+import { Ionicons } from "@expo/vector-icons";
 
-export default function HistoryDetail({ route }) {
+const screenWidth = Dimensions.get("window").width;
+
+export default function HistoryDetail({ route, navigation }) {
   const { device } = route.params;
 
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("all");
 
+  // 🔥 Fungsi Helper Format Waktu Lengkap
+  const formatFullDate = (ts) => {
+    if (!ts) return "--";
+    const date = new Date(ts * 1000);
+    const d = date.toLocaleDateString("id-ID", { day: '2-digit', month: 'short' });
+    const t = date.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
+    return `${d} • ${t}`;
+  };
+
   useEffect(() => {
     const r = ref(db, `history/${device}`);
-
     const unsub = onValue(r, (snap) => {
       const data = snap.val() || {};
-
       let arr = Object.keys(data).map((key) => ({
-        id: key,
+        id: Number(key), // Ini adalah Unix Timestamp
         ...data[key],
       }));
-
-      arr.sort((a, b) => a.id - b.id);
+      arr.sort((a, b) => b.id - a.id); // Urutkan terbaru di atas
       setLogs(arr);
     });
-
     return () => unsub();
   }, [device]);
 
-  // ================= FILTER =================
+  // 🔥 Logika Filter Berdasarkan Unix Timestamp
   const getFilteredLogs = () => {
-    if (filter === "all") return logs;
+    const now = Math.floor(Date.now() / 1000); // waktu sekarang dalam detik
+    const oneDay = 24 * 60 * 60;
 
-    const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
-
-    // ================= TODAY =================
     if (filter === "today") {
-      return logs.filter((i) => i.date === todayStr);
+      const startOfToday = new Date().setHours(0, 0, 0, 0) / 1000;
+      return logs.filter((i) => i.id >= startOfToday);
     }
-
-    // ================= YESTERDAY =================
     if (filter === "yesterday") {
-      const y = new Date();
-      y.setDate(y.getDate() - 1);
-      const yStr = y.toISOString().slice(0, 10);
-
-      return logs.filter((i) => i.date === yStr);
+      const startOfToday = new Date().setHours(0, 0, 0, 0) / 1000;
+      const startOfYesterday = startOfToday - oneDay;
+      return logs.filter((i) => i.id >= startOfYesterday && i.id < startOfToday);
     }
-
-    // ================= WEEK =================
     if (filter === "week") {
-      const now = new Date();
-      const weekAgo = new Date();
-      weekAgo.setDate(now.getDate() - 7);
-
-      return logs.filter(
-        (i) => new Date(i.date) >= weekAgo && new Date(i.date) <= now,
-      );
+      const sevenDaysAgo = now - (7 * oneDay);
+      return logs.filter((i) => i.id >= sevenDaysAgo);
     }
-
     return logs;
   };
 
   const filteredLogs = getFilteredLogs();
 
-  // ================= COLORS =================
-  const getMoistureColor = (m) => {
-    if (m < 25) return "#ff3b30";
-    if (m < 40) return "#ff9500";
-    return "#34c759";
-  };
-
-  const getBgColor = (m) => {
-    if (m < 25) return "rgba(255,59,48,0.12)";
-    if (m < 40) return "rgba(255,149,0,0.12)";
-    return "rgba(52,199,89,0.12)";
+  const getStatusColor = (m) => {
+    if (m < 25) return "#E74C3C";
+    if (m < 40) return "#F1C40F";
+    return "#2ECC71";
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "#f5f7fb", padding: 16,paddingTop:50 }}>
-      {/* ================= HEADER ================= */}
-      <Text style={{ fontSize: 24, fontWeight: "bold", color: "#111" }}>
-        📊 {device.toUpperCase()} Dashboard
-      </Text>
-
-      <Text style={{ color: "#666", marginTop: 4 }}>
-        Historical Sensor Analytics
-      </Text>
-
-      {/* ================= FILTER ================= */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 15 }}>
-        {["all", "today", "yesterday", "week"].map((f) => (
-          <TouchableOpacity
-            key={f}
-            onPress={() => setFilter(f)}
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 12,
-              marginRight: 8,
-              marginBottom: 8,
-              borderRadius: 20,
-              backgroundColor: filter === f ? "#007AFF" : "#e5e7eb",
-            }}
-          >
-            <Text
-              style={{ color: filter === f ? "#fff" : "#333", fontSize: 12 }}
-            >
-              {f.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+    <View style={styles.container}>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color="#2D3436" />
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>{device.toUpperCase()}</Text>
+          <Text style={styles.headerSubtitle}>Detailed History Logs</Text>
+        </View>
       </View>
 
-      {/* ================= SUMMARY CARD ================= */}
-      <View
-        style={{
-          backgroundColor: "#fff",
-          padding: 14,
-          borderRadius: 14,
-          marginBottom: 15,
-          borderWidth: 1,
-          borderColor: "#e5e7eb",
-        }}
-      >
-        <Text style={{ fontSize: 16, fontWeight: "bold", color: "#111" }}>
-          Total Records
-        </Text>
-        <Text style={{ fontSize: 20, color: "#007AFF", marginTop: 5 }}>
-          {filteredLogs.length}
-        </Text>
-      </View>
-
-      {/* ================= LIST ================= */}
-      {filteredLogs.length === 0 ? (
-        <Text style={{ textAlign: "center", marginTop: 30, color: "#666" }}>
-          No data found
-        </Text>
-      ) : (
-        filteredLogs.map((item) => {
-          const color = getMoistureColor(item.moisture);
-
-          return (
-            <View
-              key={item.id}
-              style={{
-                backgroundColor: getBgColor(item.moisture),
-                padding: 14,
-                borderRadius: 14,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: "#e5e7eb",
-              }}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+        
+        {/* FILTER TABS */}
+        <View style={styles.filterWrapper}>
+          {["all", "today", "yesterday", "week"].map((f) => (
+            <TouchableOpacity
+              key={f}
+              onPress={() => setFilter(f)}
+              style={[styles.chip, filter === f && styles.chipActive]}
             >
-              {/* TOP */}
-              <Text style={{ fontWeight: "bold", color: "#111" }}>
-               {item.time} {item.date}
+              <Text style={[styles.chipText, filter === f && styles.chipTextActive]}>
+                {f.toUpperCase()}
               </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-              {/* MOISTURE */}
-              <Text style={{ marginTop: 8, color: "#666" }}>Moisture</Text>
+        {/* SUMMARY STATS */}
+        <View style={styles.summaryCard}>
+          <Ionicons name="stats-chart" size={20} color="#007AFF" />
+          <View style={{ marginLeft: 12 }}>
+            <Text style={styles.summaryLabel}>Total Records Found</Text>
+            <Text style={styles.summaryValue}>{filteredLogs.length} Data Points</Text>
+          </View>
+        </View>
 
-              <Text style={{ fontSize: 18, fontWeight: "bold", color: color }}>
-                {item.moisture}%
-              </Text>
+        {/* LOG LIST */}
+        {filteredLogs.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={50} color="#BDC3C7" />
+            <Text style={styles.emptyText}>No data logs available for this period</Text>
+          </View>
+        ) : (
+          filteredLogs.map((item) => {
+            const color = getStatusColor(item.moisture);
+            return (
+              <View key={item.id} style={styles.logCard}>
+                <View style={[styles.statusSideBar, { backgroundColor: color }]} />
+                
+                <View style={styles.logContent}>
+                  <View style={styles.logHeader}>
+                    <Text style={styles.logTime}>{formatFullDate(item.id)}</Text>
+                    <View style={[styles.badge, { backgroundColor: color + '20' }]}>
+                      <Text style={{ color: color, fontSize: 10, fontWeight: '700' }}>
+                        {item.moisture >= 40 ? 'OPTIMAL' : 'CHECK'}
+                      </Text>
+                    </View>
+                  </View>
 
-              {/* BAR */}
-              <View
-                style={{
-                  height: 6,
-                  backgroundColor: "#e5e7eb",
-                  borderRadius: 10,
-                  marginTop: 8,
-                }}
-              >
-                <View
-                  style={{
-                    width: `${item.moisture}%`,
-                    height: 6,
-                    backgroundColor: color,
-                    borderRadius: 10,
-                  }}
-                />
+                  <View style={styles.dataRow}>
+                    <View style={styles.dataBox}>
+                      <Text style={styles.dataLabel}>MOISTURE</Text>
+                      <Text style={[styles.dataValue, { color: color }]}>{item.moisture}%</Text>
+                    </View>
+                    <View style={styles.dataDivider} />
+                    <View style={styles.dataBox}>
+                      <Text style={styles.dataLabel}>TEMPERATURE</Text>
+                      <Text style={styles.dataValue}>{item.temperature}°C</Text>
+                    </View>
+                  </View>
+
+                  {/* MINI PROGRESS BAR */}
+                  <View style={styles.progressBarBg}>
+                    <View style={[styles.progressBarFill, { width: `${item.moisture}%`, backgroundColor: color }]} />
+                  </View>
+                </View>
               </View>
-
-              {/* TEMP */}
-              <Text style={{ marginTop: 10, color: "#555" }}>
-                🌡 Temperature: {item.temperature}°C
-              </Text>
-            </View>
-          );
-        })
-      )}
-    </ScrollView>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#F8F9FA", paddingHorizontal: 20 },
+  header: { marginTop: 60, marginBottom: 20, flexDirection: 'row', alignItems: 'center' },
+  backBtn: { marginRight: 15, padding: 5 },
+  headerTitle: { fontSize: 22, fontWeight: "700", color: "#2D3436" },
+  headerSubtitle: { fontSize: 13, color: "#636E72" },
+  
+  filterWrapper: { flexDirection: "row", flexWrap: "wrap", marginBottom: 20 },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#E1E1E1",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipActive: { backgroundColor: "#2D3436", borderColor: "#2D3436" },
+  chipText: { fontSize: 11, fontWeight: "700", color: "#666" },
+  chipTextActive: { color: "#FFF" },
+
+  summaryCard: {
+    backgroundColor: "#FFF",
+    padding: 15,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 2,
+  },
+  summaryLabel: { fontSize: 12, color: "#95A5A6", fontWeight: "600" },
+  summaryValue: { fontSize: 18, fontWeight: "700", color: "#2D3436" },
+
+  logCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    elevation: 2,
+  },
+  statusSideBar: { width: 5 },
+  logContent: { flex: 1, padding: 15 },
+  logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  logTime: { fontSize: 12, fontWeight: "700", color: "#2D3436" },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  
+  dataRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  dataBox: { flex: 1 },
+  dataLabel: { fontSize: 9, color: "#95A5A6", fontWeight: "700", letterSpacing: 0.5 },
+  dataValue: { fontSize: 16, fontWeight: "700", color: "#2D3436" },
+  dataDivider: { width: 1, backgroundColor: "#F0F0F0", marginHorizontal: 15 },
+
+  progressBarBg: { height: 4, backgroundColor: "#F0F0F0", borderRadius: 2 },
+  progressBarFill: { height: 4, borderRadius: 2 },
+
+  emptyState: { alignItems: 'center', marginTop: 50 },
+  emptyText: { color: "#BDC3C7", marginTop: 10, fontSize: 14 }
+});
