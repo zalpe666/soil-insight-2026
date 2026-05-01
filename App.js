@@ -14,6 +14,7 @@ import History from "./screens/History";
 import Pump from "./screens/Pump";
 import Settings from "./screens/Settings"; 
 import HistoryDetail from "./screens/HistoryDetail";
+import Logs from "./screens/Logs";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -89,6 +90,7 @@ export default function App() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Tabs" component={Tabs} />
           <Stack.Screen name="HistoryDetail" component={HistoryDetail} />
+          <Stack.Screen name="Logs" component={Logs} />
         </Stack.Navigator>
       </NavigationContainer>
     </GestureHandlerRootView>
