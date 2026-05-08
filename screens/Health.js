@@ -5,28 +5,27 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebase";
 import { Ionicons } from "@expo/vector-icons";
-import { RefreshControl } from "react-native";
+import { COLORS, globalStyles } from "../styles/theme.js"; // Sesuaikan path import
 
 export default function DeviceHealth() {
   const [data, setData] = useState({});
   const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
-    const r = ref(db, "/sensors");
-    const unsub = onValue(r, (snap) => {
-      setData(snap.val() || {});
-    });
+    const unsub = onValue(ref(db, "/sensors"), (snap) =>
+      setData(snap.val() || {}),
+    );
     return () => unsub();
   }, []);
   const onRefresh = () => {
     setRefreshing(true);
-
-    const r = ref(db, "/sensors");
     onValue(
-      r,
+      ref(db, "/sensors"),
       (snap) => {
         setData(snap.val() || {});
         setRefreshing(false);
@@ -34,60 +33,49 @@ export default function DeviceHealth() {
       { onlyOnce: true },
     );
   };
-  const formatTime = (ts) => {
-    if (!ts) return "Never";
-    const date = new Date(ts * 1000);
-    return date.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
-  const DEVICE_INTERVAL = 2 * 60; // 30 menit dalam detik
-
-  const isOnline = (timestamp) => {
-    const now = Math.floor(Date.now() / 1000);
-    return now - timestamp < DEVICE_INTERVAL * 1.5;
-  };
-
-  // 🔥 FUNGSI BARU: Menentukan kualitas sinyal berdasarkan angka RSSI
-  const getSignalInfo = (rssi, isOnline) => {
-    if (!isOnline) {
+  const formatTime = (ts) =>
+    ts
+      ? new Date(ts * 1000).toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "Never";
+  const isOnline = (timestamp) =>
+    Math.floor(Date.now() / 1000) - timestamp < 2 * 60 * 1.5;
+  const getSignalInfo = (rssi, online) => {
+    if (!online)
       return {
         label: "OFFLINE",
-        color: "#E74C3C",
+        color: COLORS.danger,
         icon: "cloud-offline-outline",
       };
-    }
-
-    if (!rssi || rssi === 0)
-      return { label: "N/A", color: "#95A5A6", icon: "wifi-outline" };
-
+    if (!rssi)
+      return { label: "N/A", color: COLORS.textMuted, icon: "wifi-outline" };
     if (rssi > -50)
-      return { label: "Excellent", color: "#2ECC71", icon: "wifi" };
-
-    if (rssi > -70) return { label: "Good", color: "#3498DB", icon: "wifi" };
-
-    if (rssi > -85) return { label: "Fair", color: "#F1C40F", icon: "wifi" };
-
-    return { label: "Poor", color: "#E74C3C", icon: "wifi-outline" };
+      return { label: "Excellent", color: COLORS.success, icon: "wifi" };
+    if (rssi > -70) return { label: "Good", color: COLORS.info, icon: "wifi" };
+    if (rssi > -85)
+      return { label: "Fair", color: COLORS.warning, icon: "wifi" };
+    return { label: "Poor", color: COLORS.danger, icon: "wifi-outline" };
   };
 
   return (
     <ScrollView
-      style={styles.container}
+      style={globalStyles.container}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={["#2D3436"]}
-          tintColor="#2D3436"
+          colors={[COLORS.textMain]}
         />
       }
     >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>System Health</Text>
-        <Text style={styles.headerSubtitle}>Hardware & Network Status</Text>
+      <View style={globalStyles.header}>
+        <Text style={globalStyles.headerTitle}>System Health</Text>
+        <Text style={globalStyles.headerSubtitle}>
+          Hardware & Network Status
+        </Text>
       </View>
 
       <View style={styles.summaryRow}>
@@ -97,7 +85,7 @@ export default function DeviceHealth() {
         </View>
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Active</Text>
-          <Text style={[styles.summaryValue, { color: "#2ECC71" }]}>
+          <Text style={[styles.summaryValue, { color: COLORS.success }]}>
             {Object.values(data).filter((i) => isOnline(i.timestamp)).length}
           </Text>
         </View>
@@ -106,18 +94,17 @@ export default function DeviceHealth() {
       {Object.keys(data).map((key) => {
         const item = data[key];
         const online = isOnline(item.timestamp);
-
-        // 🔥 Ambil info sinyal dari data Firebase
         const signal = getSignalInfo(item.rssi, online);
-
         return (
-          <View key={key} style={styles.deviceCard}>
+          <View key={key} style={globalStyles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.nameSection}>
                 <View
                   style={[
                     styles.statusDot,
-                    { backgroundColor: online ? "#2ECC71" : "#E74C3C" },
+                    {
+                      backgroundColor: online ? COLORS.success : COLORS.danger,
+                    },
                   ]}
                 />
                 <Text style={styles.deviceName}>{key.toUpperCase()}</Text>
@@ -125,7 +112,7 @@ export default function DeviceHealth() {
               <Text
                 style={[
                   styles.statusBadge,
-                  { color: online ? "#2ECC71" : "#E74C3C" },
+                  { color: online ? COLORS.success : COLORS.danger },
                 ]}
               >
                 {online ? "ONLINE" : "OFFLINE"}
@@ -133,7 +120,6 @@ export default function DeviceHealth() {
             </View>
 
             <View style={styles.detailsGrid}>
-              {/* 📶 SIGNAL DYNAMIC */}
               <View style={styles.detailItem}>
                 <Ionicons name={signal.icon} size={16} color={signal.color} />
                 <View style={styles.detailTextGroup}>
@@ -143,9 +129,12 @@ export default function DeviceHealth() {
                   </Text>
                 </View>
               </View>
-
               <View style={styles.detailItem}>
-                <Ionicons name="sync-outline" size={16} color="#95A5A6" />
+                <Ionicons
+                  name="sync-outline"
+                  size={16}
+                  color={COLORS.textMuted}
+                />
                 <View style={styles.detailTextGroup}>
                   <Text style={styles.detailLabel}>LAST SYNC</Text>
                   <Text style={styles.detailValue}>
@@ -153,31 +142,45 @@ export default function DeviceHealth() {
                   </Text>
                 </View>
               </View>
-
               <View style={styles.detailItem}>
                 <Ionicons
-                  name="battery-charging-outline"
+                  name={
+                    online ? "battery-charging-outline" : "battery-dead-outline"
+                  }
                   size={16}
-                  color="#95A5A6"
+                  color={online ? COLORS.textMuted : COLORS.danger}
                 />
                 <View style={styles.detailTextGroup}>
                   <Text style={styles.detailLabel}>POWER</Text>
-                  <Text style={styles.detailValue}>USB 5V</Text>
+                  <Text
+                    style={[
+                      styles.detailValue,
+                      !online && { color: COLORS.danger },
+                    ]}
+                  >
+                    {online ? "USB 5V" : "None"}
+                  </Text>
                 </View>
               </View>
-
               <View style={styles.detailItem}>
-                <Ionicons name="pulse-outline" size={16} color="#95A5A6" />
+                <Ionicons
+                  name="pulse-outline"
+                  size={16}
+                  color={COLORS.textMuted}
+                />
                 <View style={styles.detailTextGroup}>
                   <Text style={styles.detailLabel}>INTERVAL</Text>
                   <Text style={styles.detailValue}>10s</Text>
                 </View>
               </View>
             </View>
-
             {!online && (
               <View style={styles.alertBox}>
-                <Ionicons name="warning-outline" size={14} color="#E74C3C" />
+                <Ionicons
+                  name="warning-outline"
+                  size={14}
+                  color={COLORS.danger}
+                />
                 <Text style={styles.alertText}>
                   Check device power and WiFi connection.
                 </Text>
@@ -187,45 +190,34 @@ export default function DeviceHealth() {
         );
       })}
 
-      <TouchableOpacity style={styles.refreshBtn}>
-        <Text style={styles.refreshBtnText}>PING ALL DEVICES</Text>
+      <TouchableOpacity
+        style={[globalStyles.buttonMain, { marginVertical: 20 }]}
+      >
+        <Text style={globalStyles.buttonText}>PING ALL DEVICES</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8F9FA", paddingHorizontal: 20 },
-  header: { marginTop: 60, marginBottom: 25 },
-  headerTitle: { fontSize: 26, fontWeight: "800", color: "#2D3436" },
-  headerSubtitle: { fontSize: 14, color: "#636E72", fontWeight: "500" },
-
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 20,
   },
   summaryBox: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.white,
     width: "48%",
     padding: 15,
     borderRadius: 16,
     elevation: 2,
   },
-  summaryLabel: { fontSize: 12, color: "#B2BEC3", fontWeight: "700" },
+  summaryLabel: { fontSize: 12, color: COLORS.textLight, fontWeight: "700" },
   summaryValue: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#2D3436",
+    color: COLORS.textMain,
     marginTop: 4,
-  },
-
-  deviceCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 15,
-    elevation: 3,
   },
   cardHeader: {
     flexDirection: "row",
@@ -235,9 +227,8 @@ const styles = StyleSheet.create({
   },
   nameSection: { flexDirection: "row", alignItems: "center" },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
-  deviceName: { fontSize: 16, fontWeight: "800", color: "#2D3436" },
+  deviceName: { fontSize: 16, fontWeight: "800", color: COLORS.textMain },
   statusBadge: { fontSize: 11, fontWeight: "800" },
-
   detailsGrid: { flexDirection: "row", flexWrap: "wrap" },
   detailItem: {
     width: "50%",
@@ -248,12 +239,11 @@ const styles = StyleSheet.create({
   detailTextGroup: { marginLeft: 10 },
   detailLabel: {
     fontSize: 9,
-    color: "#B2BEC3",
+    color: COLORS.textLight,
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  detailValue: { fontSize: 13, fontWeight: "700", color: "#2D3436" },
-
+  detailValue: { fontSize: 13, fontWeight: "700", color: COLORS.textMain },
   alertBox: {
     flexDirection: "row",
     backgroundColor: "#FDEDEC",
@@ -263,17 +253,8 @@ const styles = StyleSheet.create({
   },
   alertText: {
     fontSize: 11,
-    color: "#E74C3C",
+    color: COLORS.danger,
     marginLeft: 8,
     fontWeight: "600",
   },
-
-  refreshBtn: {
-    backgroundColor: "#2D3436",
-    padding: 16,
-    borderRadius: 15,
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  refreshBtnText: { color: "#FFF", fontWeight: "800", letterSpacing: 1 },
 });
