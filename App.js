@@ -1,6 +1,6 @@
 import "react-native-gesture-handler";
-import { useEffect, useState } from "react";
-import { View, Text, Image, StyleSheet, Dimensions } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, Text, Image, StyleSheet, Animated } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -19,6 +19,7 @@ import Logs from "./screens/Logs";
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+// === TAB NAVIGATION ===
 function Tabs() {
   return (
     <Tab.Navigator
@@ -30,8 +31,8 @@ function Tabs() {
         tabBarStyle: {
           backgroundColor: "#ffffff",
           borderTopWidth: 0,
-          height: 70,
-          paddingBottom: 12,
+          height: 80,
+          paddingBottom: 20,
           paddingTop: 8,
           elevation: 10,
           bottom: 0,
@@ -62,10 +63,95 @@ function Tabs() {
       <Tab.Screen name="Home" component={Home} />
       <Tab.Screen name="History" component={History} />
       {/* Tab Pump dibuat kosong labelnya karena sudah ada icon besar */}
-      <Tab.Screen name="Pump" component={Pump} options={{ tabBarLabel: "" }} /> 
+      <Tab.Screen name="Pump" component={Pump} options={{ tabBarLabel: "Pump" }} /> 
       <Tab.Screen name="Health" component={Health} />
       <Tab.Screen name="Settings" component={Settings} />
     </Tab.Navigator>
+  );
+}
+
+// === SPLASH SCREEN COMPONENT ===
+function SplashScreen() {
+  // Setup nilai awal animasi
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    // 1. Animasi Fade In & Slide Up untuk konten utama (dioptimalkan untuk performa native)
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
+
+    // 2. Animasi Pulsing untuk titik loading berurutan
+    const animateDot = (dot, delay) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 400,
+            delay: delay,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    };
+
+    animateDot(dot1, 0);
+    animateDot(dot2, 200);
+    animateDot(dot3, 400);
+  }, [fadeAnim, slideAnim, dot1, dot2, dot3]);
+
+  return (
+    <View style={styles.splashContainer}>
+      <View style={styles.spacer} />
+
+      {/* Area Konten Utama */}
+      <Animated.View 
+        style={[
+          styles.mainContent, 
+          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+        ]}
+      >
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require("./assets/splash-soil-insight.jpeg")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+        <Text style={styles.title}>Soil Insight</Text>
+        <Text style={styles.subtitle}>Monitoring soil & sensor system</Text>
+
+        <View style={styles.loadingBox}>
+          <Animated.View style={[styles.dot, { opacity: dot1 }]} />
+          <Animated.View style={[styles.dot, { opacity: dot2 }]} />
+          <Animated.View style={[styles.dot, { opacity: dot3 }]} />
+        </View>
+      </Animated.View>
+
+      {/* Area Footer */}
+      <Animated.View style={[styles.footerContainer, { opacity: fadeAnim }]}>
+        <Text style={styles.footerText}>Loading sensor data...</Text>
+        <Text style={styles.byText}>by GDM</Text>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -97,75 +183,82 @@ export default function App() {
   );
 }
 
-// === SPLASH SCREEN COMPONENT ===
-function SplashScreen() {
-  return (
-    <View style={styles.splashContainer}>
-      <Image
-        source={require("./assets/splash-soil-insight.jpeg")}
-        style={styles.logo}
-        resizeMode="contain"
-      />
-      <Text style={styles.title}>Soil Insight</Text>
-      <Text style={styles.subtitle}>Monitoring soil & sensor system</Text>
-
-      <View style={styles.loadingBox}>
-        <View style={styles.dot} />
-        <View style={[styles.dot, styles.dotDelay]} />
-        <View style={[styles.dot, styles.dotDelay2]} />
-      </View>
-
-      <Text style={styles.footer}>Loading sensor data...</Text>
-      <Text style={styles.by}>by GDM</Text>
-    </View>
-  );
-}
-
 // === STYLES ===
 const styles = StyleSheet.create({
   // Splash Styles
   splashContainer: {
     flex: 1,
-    backgroundColor: "#ffffff",
-    justifyContent: "center",
+    backgroundColor: "#F8FAF8", 
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+  },
+  spacer: {
+    flex: 1,
+  },
+  mainContent: {
+    flex: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoWrapper: {
+    padding: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    shadowColor: "#1b4332",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5, 
+    marginBottom: 24,
   },
   logo: {
-    width: 160,
-    height: 160,
-    marginBottom: 20,
+    width: 140,
+    height: 140,
+    borderRadius: 16,
   },
   title: {
-    fontSize: 30,
-    fontWeight: "700",
+    fontSize: 32,
+    fontWeight: "800",
     color: "#1b4332",
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#6b7280",
-    marginTop: 6,
-    marginBottom: 20,
-    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 28,
+    fontWeight: "500",
   },
   loadingBox: {
     flexDirection: "row",
-    marginTop: 10,
-    marginBottom: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#1b4332",
-    marginHorizontal: 4,
-    opacity: 0.3,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#2ECC71", 
+    marginHorizontal: 5,
   },
-  dotDelay: { opacity: 0.6 },
-  dotDelay2: { opacity: 1 },
-  footer: { fontSize: 13, color: "#4b5563", marginTop: 10 },
-  by: { fontSize: 12, color: "#9ca3af", marginTop: 5 },
+  footerContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingBottom: 40, 
+  },
+  footerText: { 
+    fontSize: 13, 
+    color: "#4b5563", 
+    fontWeight: "500",
+  },
+  byText: { 
+    fontSize: 12, 
+    color: "#9ca3af", 
+    marginTop: 6,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
 
   // Tab Styles
   centerTab: {
