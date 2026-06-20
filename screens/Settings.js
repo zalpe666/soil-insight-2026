@@ -63,19 +63,15 @@ export default function Settings() {
 
   const saveNames = async () => {
     try {
-      // local storage
-      await AsyncStorage.setItem("esp_names", JSON.stringify(names));
+      console.log("Saving interval:", sendInterval);
 
-      await AsyncStorage.setItem("send_interval", sendInterval);
-
-      // firebase realtime
       await set(ref(db, "settings/send_interval"), Number(sendInterval));
+
+      console.log("Firebase saved!");
 
       Alert.alert("Success", "Settings updated!");
     } catch (e) {
-      console.log(e);
-
-      Alert.alert("Error", "Failed to save settings.");
+      console.log("Firebase Error:", e);
     }
   };
 

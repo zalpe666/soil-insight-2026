@@ -41,6 +41,7 @@ export const globalStyles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: 20,
     padding: 20,
+    marginBottom: 10,
     elevation: 4,
     shadowColor: "#000",
     shadowOpacity: 0.05,

@@ -10,7 +10,7 @@ import {
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebase";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS, globalStyles } from "../styles/theme.js"; // Sesuaikan path import
+import { COLORS, globalStyles } from "../styles/theme.js";
 
 export default function DeviceHealth() {
   const [data, setData] = useState({});
@@ -42,7 +42,7 @@ export default function DeviceHealth() {
         })
       : "Never";
   const isOnline = (timestamp) =>
-    Math.floor(Date.now() / 1000) - timestamp < 2 * 60 * 1.5;
+    Math.floor(Date.now() / 1000) - timestamp < 10 * 60 * 1.5;
   const getSignalInfo = (rssi, online) => {
     if (!online)
       return {
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   deviceName: { fontSize: 16, fontWeight: "800", color: COLORS.textMain },
   statusBadge: { fontSize: 11, fontWeight: "800" },
-  detailsGrid: { flexDirection: "row", flexWrap: "wrap" },
+  detailsGrid: { flexDirection: "row", flexWrap: "wrap", marginVertical: 5 },
   detailItem: {
     width: "50%",
     flexDirection: "row",

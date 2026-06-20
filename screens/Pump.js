@@ -15,9 +15,11 @@ import { ref, onValue } from "firebase/database";
 import { db } from "../firebase";
 import { TUYA_CLIENT_ID, TUYA_CLIENT_SECRET, TUYA_DEVICE_ID } from "@env";
 import { COLORS, globalStyles } from "../styles/theme.js";
+
 const BASE_URL = "https://openapi-sg.iotbing.com";
 
 export default function Pump() {
+  const [isDeviceOnline, setIsDeviceOnline] = useState(true);
   const [sensorData, setSensorData] = useState({});
   const [deviceData, setDeviceData] = useState([]);
   const [isPumpOn, setIsPumpOn] = useState(false);
@@ -79,23 +81,69 @@ export default function Pump() {
     if (isSending) return;
     setIsSending(true);
     try {
-      await tuyaReq("POST", `/v1.0/devices/${TUYA_DEVICE_ID}/commands`, {
-        commands: [{ code: "switch_1", value: val }],
-      });
+      const res = await tuyaReq(
+        "POST",
+        `/v1.0/devices/${TUYA_DEVICE_ID}/commands`,
+        {
+          commands: [{ code: "switch_1", value: val }],
+        },
+      );
+
+      // Cek apakah Tuya mengembalikan respons error logika (misal: Device Offline)
+      if (res.data && res.data.success === false) {
+        throw new Error(res.data.msg || "Perangkat mungkin offline");
+      }
+
       setIsPumpOn(val);
+      setIsDeviceOnline(true); // Pastikan status online jika berhasil
+
+      // Tampilkan Alert HANYA jika dipicu secara manual (agar auto-mode tidak spam alert)
+      if (manualOverride) {
+        Alert.alert(
+          "Berhasil",
+          `Pompa berhasil di${val ? "nyalakan" : "matikan"}.`,
+        );
+      }
     } catch (err) {
-      Alert.alert("Gagal", "Gagal mengontrol pompa.");
+      setIsDeviceOnline(false); // Tandai perangkat offline/bermasalah
+
+      // Ambil pesan error dari Tuya atau gunakan pesan default
+      const errorMsg =
+        err.response?.data?.msg ||
+        err.message ||
+        "Periksa koneksi internet atau status perangkat.";
+      Alert.alert("Koneksi Gagal", `Tidak dapat mengontrol pompa: ${errorMsg}`);
     } finally {
       setTimeout(() => setIsSending(false), 2000);
     }
   };
 
   useEffect(() => {
-    tuyaReq("GET", `/v1.0/devices/${TUYA_DEVICE_ID}/status`).then((res) => {
-      setDeviceData(res.data.result);
-      const sw = res.data.result.find((i) => i.code === "switch_1");
-      if (sw) setIsPumpOn(sw.value);
-    });
+    tuyaReq("GET", `/v1.0/devices/${TUYA_DEVICE_ID}/status`)
+      .then((res) => {
+        // Jika request berhasil terkirim tapi Tuya bilang gagal (misal: offline)
+        if (res.data && res.data.success === false) {
+          setIsDeviceOnline(false);
+          Alert.alert(
+            "Perhatian",
+            `Gagal mengambil status perangkat: ${res.data.msg}`,
+          );
+          return;
+        }
+
+        setIsDeviceOnline(true);
+        setDeviceData(res.data.result || []);
+        const sw = res.data.result?.find((i) => i.code === "switch_1");
+        if (sw) setIsPumpOn(sw.value);
+      })
+      .catch((err) => {
+        setIsDeviceOnline(false);
+        Alert.alert(
+          "API Error",
+          "Tidak dapat terhubung ke Tuya API. Periksa koneksi internet Anda.",
+        );
+      });
+
     const unsub = onValue(ref(db, "/sensors"), (snap) =>
       setSensorData(snap.val() || {}),
     );
@@ -163,16 +211,27 @@ export default function Pump() {
           />
         </View>
 
-        <View style={styles.infoBox}>
+        <View
+          style={[
+            styles.infoBox,
+            !isDeviceOnline && { backgroundColor: "#ffeaa7" },
+          ]}
+        >
           <Ionicons
-            name="information-circle-outline"
+            name={
+              !isDeviceOnline ? "warning-outline" : "information-circle-outline"
+            }
             size={20}
-            color={COLORS.textSub}
+            color={!isDeviceOnline ? "#d63031" : COLORS.textSub}
           />
-          <Text style={styles.infoText}>
-            {isPumpOn
-              ? "Pump is currently active. Ensure the water source is sufficient."
-              : "Pump is idle. Tap the button below to start irrigation."}
+          <Text
+            style={[styles.infoText, !isDeviceOnline && { color: "#d63031" }]}
+          >
+            {!isDeviceOnline
+              ? "PERINGATAN: Perangkat sedang Offline atau API bermasalah. Kontrol mungkin tidak merespons."
+              : isPumpOn
+                ? "Pump is currently active. Ensure the water source is sufficient."
+                : "Pump is idle. Tap the button below to start irrigation."}
           </Text>
         </View>
 
