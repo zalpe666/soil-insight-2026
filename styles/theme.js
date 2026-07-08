@@ -21,6 +21,7 @@ export const globalStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    // backgroundColor: "#ff0000", // Ubah warna latar belakang menjadi mera
     paddingHorizontal: 20,
   },
 

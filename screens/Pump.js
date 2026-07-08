@@ -15,6 +15,7 @@ import { ref, onValue } from "firebase/database";
 import { db } from "../firebase";
 import { TUYA_CLIENT_ID, TUYA_CLIENT_SECRET, TUYA_DEVICE_ID } from "@env";
 import { COLORS, globalStyles } from "../styles/theme.js";
+import { ref, onValue, set } from "firebase/database";
 
 const BASE_URL = "https://openapi-sg.iotbing.com";
 
@@ -98,6 +99,7 @@ export default function Pump() {
       setIsDeviceOnline(true); // Pastikan status online jika berhasil
 
       // Tampilkan Alert HANYA jika dipicu secara manual (agar auto-mode tidak spam alert)
+      set(ref(db, "/settings/pump_status"), val);
       if (manualOverride) {
         Alert.alert(
           "Berhasil",
@@ -279,45 +281,6 @@ export default function Pump() {
           <Text style={styles.footerNote}>
             Manual control will override automatic schedules.
           </Text>
-        </View>
-
-        <View style={[globalStyles.card, styles.deviceStatusCard]}>
-          <TouchableOpacity
-            style={styles.deviceStatusHeader}
-            onPress={() => setIsExpanded(!isExpanded)}
-          >
-            <View style={styles.headerLeft}>
-              <Ionicons
-                name="hardware-chip-outline"
-                size={20}
-                color={COLORS.textSub}
-              />
-              <Text style={styles.deviceStatusTitle}>DEVICE STATUS</Text>
-            </View>
-            <Ionicons
-              name={isExpanded ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={COLORS.textLight}
-            />
-          </TouchableOpacity>
-          {isExpanded && (
-            <View style={styles.expandedContent}>
-              {deviceData.map((item, idx) => (
-                <View
-                  key={idx}
-                  style={[
-                    styles.statusRow,
-                    idx === deviceData.length - 1 && styles.lastRow,
-                  ]}
-                >
-                  <Text style={styles.statusCode}>{item.code}</Text>
-                  <Text style={styles.statusValueText}>
-                    {String(item.value)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
       </ScrollView>
     </SafeAreaView>

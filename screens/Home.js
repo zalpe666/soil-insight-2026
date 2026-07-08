@@ -168,8 +168,15 @@ export default function Home() {
                 />
               </View>
               <Text style={styles.dataLabel}>Moisture Content</Text>
+
+              {/* 1. Perbaikan: Tag penutup </Text> yang tadi terpotong */}
               <Text style={[styles.moistureValue, { color }]}>
                 {item.moisture}%
+              </Text>
+
+              {/* 2. Perbaikan: Menghilangkan % karena ini nilai ADC mentah (0-4095) */}
+              <Text style={[styles.moistureSubValue, { color: "#888" }]}>
+                Raw ADC: {item.raw_moisture}
               </Text>
 
               <View style={styles.progressContainer}>
@@ -290,4 +297,8 @@ const styles = StyleSheet.create({
     marginLeft: 3,
   },
   timeText: { fontSize: 10, color: COLORS.textLight, fontWeight: "600" },
+  moistureSubValue:{
+    fontSize: 10,
+    fontWeight: "400",
+  }
 });

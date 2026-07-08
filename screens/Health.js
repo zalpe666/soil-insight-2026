@@ -12,6 +12,19 @@ import { db } from "../firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, globalStyles } from "../styles/theme.js";
 
+// Definisikan batas toleransi waktu (4200 detik = 1 jam 10 menit)
+const ONLINE_THRESHOLD_SECONDS = 4200;
+
+// Fungsi format untuk mengubah detik menjadi teks yang rapi di UI
+const formatInterval = (seconds) => {
+  if (seconds >= 3600) {
+    const hours = Math.floor(seconds / 3600);
+    return `${hours}h`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m`;
+};
+
 export default function DeviceHealth() {
   const [data, setData] = useState({});
   const [refreshing, setRefreshing] = useState(false);
@@ -22,6 +35,7 @@ export default function DeviceHealth() {
     );
     return () => unsub();
   }, []);
+
   const onRefresh = () => {
     setRefreshing(true);
     onValue(
@@ -41,8 +55,10 @@ export default function DeviceHealth() {
           minute: "2-digit",
         })
       : "Never";
+
   const isOnline = (timestamp) =>
-    Math.floor(Date.now() / 1000) - timestamp < 10 * 60 * 1.5;
+    Math.floor(Date.now() / 1000) - timestamp < ONLINE_THRESHOLD_SECONDS;
+
   const getSignalInfo = (rssi, online) => {
     if (!online)
       return {
@@ -95,6 +111,7 @@ export default function DeviceHealth() {
         const item = data[key];
         const online = isOnline(item.timestamp);
         const signal = getSignalInfo(item.rssi, online);
+
         return (
           <View key={key} style={globalStyles.card}>
             <View style={styles.cardHeader}>
@@ -170,7 +187,9 @@ export default function DeviceHealth() {
                 />
                 <View style={styles.detailTextGroup}>
                   <Text style={styles.detailLabel}>INTERVAL</Text>
-                  <Text style={styles.detailValue}>10s</Text>
+                  <Text style={styles.detailValue}>
+                    {formatInterval(ONLINE_THRESHOLD_SECONDS)}
+                  </Text>
                 </View>
               </View>
             </View>

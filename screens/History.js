@@ -79,7 +79,7 @@ export default function History({ navigation }) {
     decimalPlaces: 0,
     color: (o = 1) => color,
     labelColor: () => `#666`,
-    propsForDots: { r: "4", strokeWidth: "2", stroke: color },
+    propsForDots: { r: "4", strokeWidth: "1", stroke: color },
     propsForLabels: { fontSize: 10 },
   });
 
@@ -112,7 +112,7 @@ export default function History({ navigation }) {
             <Text
               style={[styles.tabText, selected === s && styles.tabTextActive]}
             >
-              {customNames[s] || s.toUpperCase()}
+              {s.toUpperCase()}
             </Text>
           </TouchableOpacity>
         ))}
@@ -147,18 +147,18 @@ export default function History({ navigation }) {
       ].map((ch, idx) => (
         <View key={idx} style={styles.chartContainer}>
           <Text style={styles.chartTitle}>{ch.title}</Text>
-          <LineChart
-            data={{ labels, datasets: [{ data: ch.data }] }}
-            width={screenWidth - 40}
-            height={220}
-            verticalLabelRotation={35}
-            chartConfig={chartConfig(ch.color)}
-            bezier
-            style={styles.chartStyle}
-          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <LineChart
+              data={{ labels, datasets: [{ data: ch.data }] }}
+              width={Math.max(screenWidth, labels.length * 10)}
+              height={200}
+              chartConfig={chartConfig(ch.color)}
+              bezier
+            />
+          </ScrollView>
         </View>
       ))}
-
+      {/* Button */}
       <View style={styles.footerButtons}>
         <TouchableOpacity
           onPress={() =>
