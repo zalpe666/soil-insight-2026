@@ -7,11 +7,12 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  KeyboardAvoidingView, // <--- Tambahkan ini
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import CryptoJS from "crypto-js";
-import { ref, onValue } from "firebase/database";
 import { db } from "../firebase";
 import { TUYA_CLIENT_ID, TUYA_CLIENT_SECRET, TUYA_DEVICE_ID } from "@env";
 import { COLORS, globalStyles } from "../styles/theme.js";
@@ -160,129 +161,140 @@ export default function Pump() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+      {/* Tambahkan KeyboardAvoidingView di sini */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={globalStyles.header}>
-          <Text style={globalStyles.headerTitle}>Pump Control</Text>
-          <Text style={globalStyles.headerSubtitle}>
-            Manual Irrigation System
-          </Text>
-        </View>
-
-        <View style={[globalStyles.card, styles.visualCard]}>
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: isPumpOn ? "#E3F2FD" : "#F5F5F5" },
-            ]}
-          >
-            <Ionicons
-              name={isPumpOn ? "water" : "water-outline"}
-              size={80}
-              color={isPumpOn ? COLORS.info : COLORS.textLight}
-            />
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled" // Biar tombol tetap bisa dipencet meski keyboard aktif
+        >
+          <View style={globalStyles.header}>
+            <Text style={globalStyles.headerTitle}>Pump Control</Text>
+            <Text style={globalStyles.headerSubtitle}>
+              Manual Irrigation System
+            </Text>
           </View>
-          <View style={styles.statusInfo}>
-            <Text style={styles.statusLabel}>PUMP STATUS</Text>
-            <Text
+
+          <View style={[globalStyles.card, styles.visualCard]}>
+            <View
               style={[
-                styles.statusValue,
-                { color: isPumpOn ? COLORS.success : COLORS.danger },
+                styles.iconCircle,
+                { backgroundColor: isPumpOn ? "#E3F2FD" : "#F5F5F5" },
               ]}
             >
-              {isPumpOn ? "RUNNING" : "STANDBY"}
+              <Ionicons
+                name={isPumpOn ? "water" : "water-outline"}
+                size={80}
+                color={isPumpOn ? COLORS.info : COLORS.textLight}
+              />
+            </View>
+            <View style={styles.statusInfo}>
+              <Text style={styles.statusLabel}>PUMP STATUS</Text>
+              <Text
+                style={[
+                  styles.statusValue,
+                  { color: isPumpOn ? COLORS.success : COLORS.danger },
+                ]}
+              >
+                {isPumpOn ? "RUNNING" : "STANDBY"}
+              </Text>
+              <Text style={styles.moistureText}>
+                AVG Moisture: {averageMoisture}%
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.modeLabel,
+                { color: manualOverride ? COLORS.accent : COLORS.info },
+              ]}
+            >
+              {manualOverride ? "MANUAL OVERRIDE" : "AUTO MODE"}
             </Text>
-            <Text style={styles.moistureText}>
-              AVG Moisture: {averageMoisture}%
-            </Text>
+            <View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: isPumpOn ? COLORS.success : COLORS.textLight,
+                },
+              ]}
+            />
           </View>
-          <Text
-            style={[
-              styles.modeLabel,
-              { color: manualOverride ? COLORS.accent : COLORS.info },
-            ]}
-          >
-            {manualOverride ? "MANUAL OVERRIDE" : "AUTO MODE"}
-          </Text>
+
           <View
             style={[
-              styles.dot,
-              { backgroundColor: isPumpOn ? COLORS.success : COLORS.textLight },
-            ]}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.infoBox,
-            !isDeviceOnline && { backgroundColor: "#ffeaa7" },
-          ]}
-        >
-          <Ionicons
-            name={
-              !isDeviceOnline ? "warning-outline" : "information-circle-outline"
-            }
-            size={20}
-            color={!isDeviceOnline ? "#d63031" : COLORS.textSub}
-          />
-          <Text
-            style={[styles.infoText, !isDeviceOnline && { color: "#d63031" }]}
-          >
-            {!isDeviceOnline
-              ? "PERINGATAN: Perangkat sedang Offline atau API bermasalah. Kontrol mungkin tidak merespons."
-              : isPumpOn
-                ? "Pump is currently active. Ensure the water source is sufficient."
-                : "Pump is idle. Tap the button below to start irrigation."}
-          </Text>
-        </View>
-
-        <View style={styles.buttonWrapper}>
-          <TouchableOpacity
-            disabled={isSending}
-            onPress={() => {
-              setManualOverride(true);
-              controlPump(!isPumpOn);
-            }}
-            style={[
-              globalStyles.buttonMain,
-              {
-                backgroundColor: isSending
-                  ? COLORS.textMuted
-                  : isPumpOn
-                    ? COLORS.danger
-                    : COLORS.success,
-              },
+              styles.infoBox,
+              !isDeviceOnline && { backgroundColor: "#ffeaa7" },
             ]}
           >
             <Ionicons
-              name={isPumpOn ? "stop-circle-outline" : "play-circle-outline"}
-              size={24}
-              color={COLORS.white}
+              name={
+                !isDeviceOnline
+                  ? "warning-outline"
+                  : "information-circle-outline"
+              }
+              size={20}
+              color={!isDeviceOnline ? "#d63031" : COLORS.textSub}
             />
-            <Text style={globalStyles.buttonText}>
-              {isSending
-                ? "PROCESSING..."
-                : isPumpOn
-                  ? "STOP PUMPING"
-                  : "START PUMPING"}
-            </Text>
-          </TouchableOpacity>
-
-          {manualOverride && (
-            <TouchableOpacity
-              style={styles.autoModeBtn}
-              onPress={() => setManualOverride(false)}
+            <Text
+              style={[styles.infoText, !isDeviceOnline && { color: "#d63031" }]}
             >
-              <Ionicons name="sync-outline" size={18} color={COLORS.white} />
-              <Text style={styles.autoModeText}>ENABLE AUTO MODE</Text>
+              {!isDeviceOnline
+                ? "PERINGATAN: Perangkat sedang Offline atau API bermasalah. Kontrol mungkin tidak merespons."
+                : isPumpOn
+                  ? "Pump is currently active. Ensure the water source is sufficient."
+                  : "Pump is idle. Tap the button below to start irrigation."}
+            </Text>
+          </View>
+
+          <View style={styles.buttonWrapper}>
+            <TouchableOpacity
+              disabled={isSending}
+              onPress={() => {
+                setManualOverride(true);
+                controlPump(!isPumpOn);
+              }}
+              style={[
+                globalStyles.buttonMain,
+                {
+                  backgroundColor: isSending
+                    ? COLORS.textMuted
+                    : isPumpOn
+                      ? COLORS.danger
+                      : COLORS.success,
+                },
+              ]}
+            >
+              <Ionicons
+                name={isPumpOn ? "stop-circle-outline" : "play-circle-outline"}
+                size={24}
+                color={COLORS.white}
+              />
+              <Text style={globalStyles.buttonText}>
+                {isSending
+                  ? "PROCESSING..."
+                  : isPumpOn
+                    ? "STOP PUMPING"
+                    : "START PUMPING"}
+              </Text>
             </TouchableOpacity>
-          )}
-          <Text style={styles.footerNote}>
-            Manual control will override automatic schedules.
-          </Text>
-        </View>
-      </ScrollView>
+
+            {manualOverride && (
+              <TouchableOpacity
+                style={styles.autoModeBtn}
+                onPress={() => setManualOverride(false)}
+              >
+                <Ionicons name="sync-outline" size={18} color={COLORS.white} />
+                <Text style={styles.autoModeText}>ENABLE AUTO MODE</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.footerNote}>
+              Manual control will override automatic schedules.
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

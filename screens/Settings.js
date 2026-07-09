@@ -14,14 +14,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS, globalStyles } from "../styles/theme.js";
-
+import { ref, set, get, onValue } from "firebase/database";
 // firebase
-import { ref, set } from "firebase/database";
 import { db } from "../firebase";
 
 export default function Settings() {
   const [sendInterval, setSendInterval] = useState("30");
-
+  const [pumpInterval, setPumpInterval] = useState("10");
   const [names, setNames] = useState({
     esp1: "",
     esp2: "",
@@ -41,16 +40,17 @@ export default function Settings() {
 
   const loadSettings = async () => {
     try {
-      const namesStorage = await AsyncStorage.getItem("esp_names");
+      const snapshot = await get(ref(db, "settings"));
 
-      if (namesStorage) {
-        setNames(JSON.parse(namesStorage));
-      }
+      if (snapshot.exists()) {
+        const data = snapshot.val();
 
-      const intervalStorage = await AsyncStorage.getItem("send_interval");
+        setSendInterval(String(data.send_interval ?? 30));
+        setPumpInterval(String(data.pump_interval ?? 10));
 
-      if (intervalStorage) {
-        setSendInterval(intervalStorage);
+        if (data.device_names) {
+          setNames(data.device_names);
+        }
       }
     } catch (e) {
       console.log(e);
@@ -63,17 +63,35 @@ export default function Settings() {
 
   const saveNames = async () => {
     try {
-      console.log("Saving interval:", sendInterval);
-
-      await set(ref(db, "settings/send_interval"), Number(sendInterval));
-
-      console.log("Firebase saved!");
+      await set(ref(db, "settings"), {
+        send_interval: Number(sendInterval),
+        pump_interval: Number(pumpInterval),
+        device_names: names,
+      });
 
       Alert.alert("Success", "Settings updated!");
     } catch (e) {
-      console.log("Firebase Error:", e);
+      console.log(e);
+      Alert.alert("Error", "Failed to save settings.");
     }
   };
+  useEffect(() => {
+    const settingsRef = ref(db, "settings");
+
+    const unsubscribe = onValue(settingsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+
+        setSendInterval(String(data.send_interval || 30));
+
+        if (data.device_names) {
+          setNames(data.device_names);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <ScrollView style={globalStyles.container}>
@@ -103,6 +121,17 @@ export default function Settings() {
             placeholder="30"
             value={sendInterval}
             onChangeText={setSendInterval}
+          />
+        </View>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>PUMP INTERVAL (MINUTES)</Text>
+
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            placeholder="10"
+            value={pumpInterval}
+            onChangeText={setPumpInterval}
           />
         </View>
       </View>
