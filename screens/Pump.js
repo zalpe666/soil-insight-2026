@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { ref, onValue, set, push } from "firebase/database";
 import {
   View,
   Text,
@@ -16,8 +17,13 @@ import CryptoJS from "crypto-js";
 import { db } from "../firebase";
 import { TUYA_CLIENT_ID, TUYA_CLIENT_SECRET, TUYA_DEVICE_ID } from "@env";
 import { COLORS, globalStyles } from "../styles/theme.js";
-import { ref, onValue, set } from "firebase/database";
-
+import { useNavigation } from "@react-navigation/native";
+// import { ref, onValue, set } from "firebase/database";
+console.log({
+  TUYA_CLIENT_ID,
+  TUYA_CLIENT_SECRET,
+  TUYA_DEVICE_ID,
+});
 const BASE_URL = "https://openapi-sg.iotbing.com";
 
 export default function Pump() {
@@ -28,57 +34,163 @@ export default function Pump() {
   const [manualOverride, setManualOverride] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const navigation = useNavigation();
 
-  const averageMoisture = useMemo(() => {
-    const vals = Object.values(sensorData);
-    return vals.length
-      ? Math.round(
-          vals.reduce((sum, item) => sum + (item.moisture || 0), 0) /
-            vals.length,
-        )
-      : 0;
+  const syncResult = useMemo(() => {
+    const sensors = Object.values(sensorData);
+
+    const readyCount = sensors.filter(
+      (s) =>
+        s.timestamp && s.moisture !== undefined && s.temperature !== undefined,
+    ).length;
+
+    // Belum semua sensor mengirim
+    if (readyCount < 1) {
+      return {
+        ready: false,
+        readyCount,
+        average: 0,
+      };
+    }
+
+    const timestamps = sensors.map((s) => Number(s.timestamp));
+
+    const minTime = Math.min(...timestamps);
+    const maxTime = Math.max(...timestamps);
+
+    // ===== DEBUG =====
+    console.log(
+      sensors.map((s, i) => ({
+        esp: i + 1,
+        moisture: s.moisture,
+        timestamp: s.timestamp,
+      })),
+    );
+
+    console.log("Min :", minTime);
+    console.log("Max :", maxTime);
+    console.log("Diff:", maxTime - minTime);
+    // =================
+
+    const MAX_SENSOR_DELAY = 60;
+
+    if (maxTime - minTime > MAX_SENSOR_DELAY) {
+      console.log(
+        "Timestamp berbeda >60 detik, lanjut menggunakan data terbaru.",
+      );
+
+      const average = Math.round(
+        sensors.reduce((sum, s) => sum + s.moisture, 0) / sensors.length,
+      );
+
+      return {
+        ready: true, // <-- tetap dianggap siap
+        synced: false, // <-- hanya penanda
+        readyCount: 1,
+        average,
+      };
+    }
+
+    const average = Math.round(
+      sensors.reduce((sum, s) => sum + s.moisture, 0) / sensors.length,
+    );
+
+    return {
+      ready: true,
+      synced: true,
+      readyCount: 1,
+      average,
+    };
   }, [sensorData]);
 
-  const getTuyaSign = (t, token, method, path, body = "") =>
-    CryptoJS.HmacSHA256(
-      TUYA_CLIENT_ID +
-        token +
-        t +
-        `${method}\n${CryptoJS.SHA256(body).toString()}\n\n${path}`,
-      TUYA_CLIENT_SECRET,
-    )
+  const getTuyaSign = (t, token = "", method, path, body = "") => {
+    body = String(body ?? "");
+
+    const bodyHash = CryptoJS.SHA256(body).toString();
+
+    const signStr =
+      TUYA_CLIENT_ID + token + t + `${method}\n${bodyHash}\n\n${path}`;
+
+    console.log("SIGN STRING:", signStr);
+
+    return CryptoJS.HmacSHA256(signStr, String(TUYA_CLIENT_SECRET))
       .toString(CryptoJS.enc.Hex)
       .toUpperCase();
-
-  const tuyaReq = async (method, path, bodyObj = null) => {
-    const t = Date.now().toString();
-    const tokenRes = await fetch(`${BASE_URL}/v1.0/token?grant_type=1`, {
-      method: "GET",
-      headers: {
-        client_id: TUYA_CLIENT_ID,
-        sign: getTuyaSign(t, "", "GET", "/v1.0/token?grant_type=1"),
-        t,
-        sign_method: "HMAC-SHA256",
-      },
-    });
-    const token = (await tokenRes.json()).result.access_token;
-    const t2 = Date.now().toString();
-    const bodyStr = bodyObj ? JSON.stringify(bodyObj) : "";
-    return axios({
-      method,
-      url: `${BASE_URL}${path}`,
-      data: bodyStr,
-      headers: {
-        client_id: TUYA_CLIENT_ID,
-        access_token: token,
-        sign: getTuyaSign(t2, token, method, path, bodyStr),
-        t: t2,
-        sign_method: "HMAC-SHA256",
-        "Content-Type": "application/json",
-      },
-    });
   };
 
+  const tuyaReq = async (method, path, bodyObj = null) => {
+    try {
+      const t = Date.now().toString();
+
+      console.log("=== REQUEST TOKEN ===");
+
+      const tokenRes = await fetch(`${BASE_URL}/v1.0/token?grant_type=1`, {
+        method: "GET",
+        headers: {
+          client_id: TUYA_CLIENT_ID,
+          sign: getTuyaSign(t, "", "GET", "/v1.0/token?grant_type=1"),
+          t,
+          sign_method: "HMAC-SHA256",
+        },
+      });
+
+      const tokenJson = await tokenRes.json();
+
+      console.log("TOKEN:", tokenJson);
+
+      if (!tokenJson.success) {
+        throw new Error(tokenJson.msg);
+      }
+
+      const token = tokenJson.result.access_token;
+
+      const t2 = Date.now().toString();
+      const bodyStr = bodyObj ? JSON.stringify(bodyObj) : "";
+
+      console.log("=== SEND COMMAND ===");
+      console.log({
+        token,
+        bodyStr,
+        path,
+        method,
+      });
+
+      return axios({
+        method,
+        url: `${BASE_URL}${path}`,
+        data: bodyStr,
+        headers: {
+          client_id: TUYA_CLIENT_ID,
+          access_token: token,
+          sign: getTuyaSign(t2, token, method, path, bodyStr),
+          t: t2,
+          sign_method: "HMAC-SHA256",
+          "Content-Type": "application/json",
+        },
+      });
+    } catch (e) {
+      console.log("TUYA ERROR:", e);
+      console.log("STACK:", e.stack);
+      throw e;
+    }
+  };
+  const savePumpLog = async (action, success) => {
+    try {
+      const timestamp = Date.now();
+
+      await push(ref(db, "/pump_logs"), {
+        action,
+        success,
+        source: manualOverride ? "MANUAL" : "AUTO",
+        moisture: syncResult.average,
+        timestamp,
+      });
+
+      console.log("Pump log saved.");
+    } catch (err) {
+      console.log("Failed save log:", err);
+    }
+  };
   const controlPump = async (val) => {
     if (isSending) return;
     setIsSending(true);
@@ -97,10 +209,14 @@ export default function Pump() {
       }
 
       setIsPumpOn(val);
-      setIsDeviceOnline(true); // Pastikan status online jika berhasil
+      setIsDeviceOnline(true);
 
-      // Tampilkan Alert HANYA jika dipicu secara manual (agar auto-mode tidak spam alert)
-      set(ref(db, "/settings/pump_status"), val);
+      // Update status realtime
+      await set(ref(db, "/settings/pump_status"), val);
+
+      // Simpan histori pompa
+      await savePumpLog(val ? "ON" : "OFF", true);
+
       if (manualOverride) {
         Alert.alert(
           "Berhasil",
@@ -109,7 +225,7 @@ export default function Pump() {
       }
     } catch (err) {
       setIsDeviceOnline(false); // Tandai perangkat offline/bermasalah
-
+      await savePumpLog(val ? "ON" : "OFF", false);
       // Ambil pesan error dari Tuya atau gunakan pesan default
       const errorMsg =
         err.response?.data?.msg ||
@@ -154,10 +270,22 @@ export default function Pump() {
   }, []);
 
   useEffect(() => {
-    if (manualOverride || averageMoisture === 0) return;
-    if (averageMoisture < 30 && !isPumpOn && !isSending) controlPump(true);
-    if (averageMoisture >= 32 && isPumpOn && !isSending) controlPump(false);
-  }, [averageMoisture, manualOverride, isPumpOn, isSending]);
+    console.log("SYNC RESULT:", syncResult);
+
+    if (manualOverride) return;
+
+    if (!syncResult.ready) return;
+
+    if (syncResult.average < 30 && !isPumpOn && !isSending) {
+      console.log("AUTO -> PUMP ON");
+      controlPump(true);
+    }
+
+    if (syncResult.average >= 32 && isPumpOn && !isSending) {
+      console.log("AUTO -> PUMP OFF");
+      controlPump(false);
+    }
+  }, [syncResult, manualOverride, isPumpOn, isSending]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -201,7 +329,22 @@ export default function Pump() {
                 {isPumpOn ? "RUNNING" : "STANDBY"}
               </Text>
               <Text style={styles.moistureText}>
-                AVG Moisture: {averageMoisture}%
+                {syncResult.ready
+                  ? `AVG Moisture: ${syncResult.average}%`
+                  : `${syncResult.readyCount} / 1 Sensors Ready`}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 6,
+                  fontWeight: "700",
+                  color: syncResult.ready ? "#27AE60" : "#F39C12",
+                }}
+              >
+                {syncResult.ready
+                  ? syncResult.synced
+                    ? "✓ Sensors Synchronized"
+                    : "⚠ Timestamp > 60s (Using Latest Data)"
+                  : "Waiting Sensor Synchronization"}
               </Text>
             </View>
             <Text
@@ -249,36 +392,42 @@ export default function Pump() {
           </View>
 
           <View style={styles.buttonWrapper}>
-            <TouchableOpacity
-              disabled={isSending}
-              onPress={() => {
-                setManualOverride(true);
-                controlPump(!isPumpOn);
-              }}
-              style={[
-                globalStyles.buttonMain,
-                {
-                  backgroundColor: isSending
-                    ? COLORS.textMuted
-                    : isPumpOn
-                      ? COLORS.danger
-                      : COLORS.success,
-                },
-              ]}
-            >
-              <Ionicons
-                name={isPumpOn ? "stop-circle-outline" : "play-circle-outline"}
-                size={24}
-                color={COLORS.white}
-              />
-              <Text style={globalStyles.buttonText}>
-                {isSending
-                  ? "PROCESSING..."
-                  : isPumpOn
-                    ? "STOP PUMPING"
-                    : "START PUMPING"}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  globalStyles.buttonMain,
+                  {
+                    flex: 1,
+                    backgroundColor: isPumpOn ? COLORS.danger : COLORS.success,
+                  },
+                ]}
+                disabled={isSending}
+                onPress={() => {
+                  setManualOverride(true);
+                  controlPump(!isPumpOn);
+                }}
+              >
+                <Text style={globalStyles.buttonText}>
+                  {isPumpOn ? "STOP PUMP" : "START PUMP"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: COLORS.info,
+                  borderRadius: 15,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+                onPress={() => navigation.navigate("PumpMonitoring")}
+              >
+                <Ionicons name="analytics-outline" color="white" size={24} />
+                <Text style={{ color: "white", fontWeight: "700" }}>
+                  Monitoring
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {manualOverride && (
               <TouchableOpacity

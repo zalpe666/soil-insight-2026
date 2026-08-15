@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zalpe420.soilinsight"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,6 +31,9 @@
       "eas": {
         "projectId": "aac22096-96b5-4cf3-8a44-c13381208ae2"
       }
-    }
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

@@ -6,14 +6,15 @@ import {
   TouchableOpacity,
   Dimensions,
   StyleSheet,
+  Alert, // <-- Tambahkan Alert
 } from "react-native";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, set } from "firebase/database"; // <-- Tambahkan 'set'
 import { db } from "../firebase";
 import { LineChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { COLORS, globalStyles } from "../styles/theme.js"; // Sesuaikan path import
+import { COLORS, globalStyles } from "../styles/theme.js";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -44,6 +45,35 @@ export default function History({ navigation }) {
     });
     return () => unsub();
   }, [selected]);
+
+  // FUNGSI RESTART ESP
+  const handleRestartESP = async () => {
+    Alert.alert(
+      "Konfirmasi Restart",
+      `Apakah kamu yakin ingin merestart perangkat ${selected.toUpperCase()}?`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Restart",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Path menyesuaikan kode ESP32 kamu: /sensors/[esp_id]/restart
+              const restartRef = ref(db, `sensors/${selected}/restart`);
+              await set(restartRef, true);
+              Alert.alert(
+                "Sukses",
+                `Perintah restart terkirim ke ${selected.toUpperCase()}`,
+              );
+            } catch (error) {
+              console.error("Gagal mengirim perintah restart:", error);
+              Alert.alert("Error", "Gagal merestart perangkat.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const latest = logs[logs.length - 1] || {};
   let status = "NORMAL";
@@ -93,11 +123,7 @@ export default function History({ navigation }) {
         <Text style={globalStyles.headerSubtitle}>Real-time Soil Insight</Text>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabScroll}
-      >
+      <View style={styles.tabContainer}>
         {sensors.map((s) => (
           <TouchableOpacity
             key={s}
@@ -116,16 +142,14 @@ export default function History({ navigation }) {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       <View style={[globalStyles.card, styles.statusCard]}>
         <View
           style={[styles.statusIndicator, { backgroundColor: statusColor }]}
         />
         <View style={styles.statusInfo}>
-          <Text style={styles.deviceLabel}>
-            {customNames[selected] || selected.toUpperCase()}
-          </Text>
+          <Text style={styles.deviceLabel}>{selected.toUpperCase()}</Text>
           <Text style={[styles.statusText, { color: statusColor }]}>
             {status}
           </Text>
@@ -158,6 +182,7 @@ export default function History({ navigation }) {
           </ScrollView>
         </View>
       ))}
+
       {/* Button */}
       <View style={styles.footerButtons}>
         <TouchableOpacity
@@ -169,6 +194,7 @@ export default function History({ navigation }) {
           <Ionicons name="analytics" size={18} color={COLORS.white} />
           <Text style={globalStyles.buttonText}>VIEW ANALYTICS</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => navigation.navigate("Logs", { device: selected })}
           style={styles.buttonSecondary}
@@ -180,23 +206,38 @@ export default function History({ navigation }) {
           />
           <Text style={styles.buttonSecondaryText}>VIEW LOGS</Text>
         </TouchableOpacity>
+
+        {/* TOMBOL RESTART BARU */}
+        <TouchableOpacity
+          onPress={handleRestartESP}
+          style={styles.buttonDanger}
+        >
+          <Ionicons
+            name="power-outline"
+            size={18}
+            color={COLORS.danger || "#FF4757"}
+          />
+          <Text style={styles.buttonDangerText}>
+            RESTART {selected.toUpperCase()}
+          </Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  tabScroll: { marginBottom: 20 },
   tabButton: {
+    width: "31%", // 3 tombol per baris
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    justifyContent: "center",
+    paddingVertical: 12,
     borderRadius: 14,
     backgroundColor: COLORS.white,
-    marginRight: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
+    marginBottom: 10,
   },
   tabActive: { backgroundColor: "#00B894", borderColor: "#00B894" },
   tabText: { marginLeft: 6, fontSize: 13, color: "#666", fontWeight: "700" },
@@ -255,5 +296,29 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     marginLeft: 8,
+  },
+  // STYLING UNTUK TOMBOL RESTART
+  buttonDanger: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 71, 87, 0.1)", // Merah transparan untuk native app feel
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.danger || "#FF4757",
+    marginTop: 12,
+  },
+  buttonDangerText: {
+    color: COLORS.danger || "#FF4757",
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginLeft: 8,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
 });
