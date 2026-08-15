@@ -15,7 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import CryptoJS from "crypto-js";
 import { db } from "../firebase";
-import { TUYA_CLIENT_ID, TUYA_CLIENT_SECRET, TUYA_DEVICE_ID } from "@env";
+const TUYA_CLIENT_ID = process.env.EXPO_PUBLIC_TUYA_CLIENT_ID;
+const TUYA_CLIENT_SECRET = process.env.EXPO_PUBLIC_TUYA_CLIENT_SECRET;
+const TUYA_DEVICE_ID = process.env.EXPO_PUBLIC_TUYA_DEVICE_ID;
 import { COLORS, globalStyles } from "../styles/theme.js";
 import { useNavigation } from "@react-navigation/native";
 // import { ref, onValue, set } from "firebase/database";
@@ -24,6 +26,7 @@ console.log({
   TUYA_CLIENT_SECRET,
   TUYA_DEVICE_ID,
 });
+
 const BASE_URL = "https://openapi-sg.iotbing.com";
 
 export default function Pump() {
